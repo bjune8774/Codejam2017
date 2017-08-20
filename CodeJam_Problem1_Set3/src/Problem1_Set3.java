@@ -1,7 +1,7 @@
 import java.io.*;
 import java.util.*;
 
-public class Problem1 {
+public class Problem1_Set3 {
 	public static void main(String[] args) {
 		Scanner input;
 		FileWriter output;
@@ -12,8 +12,8 @@ public class Problem1 {
 		int row, col;
 
 		try {
-			input = new Scanner(new File("Set1.in"));
-			output = new FileWriter("Set1.out");
+			input = new Scanner(new File("Set3.in"));
+			output = new FileWriter("Set3.out");
 		
 			cases = input.nextInt();
 			
@@ -24,12 +24,12 @@ public class Problem1 {
 					row = input.nextInt();
 					col = input.nextInt();
 					
-					CellGrid.setInfestorOnCell(row-1, col-1);
+					CellGrid.setInfestedCell(row-1, col-1, true);
+					CellGrid.addInfestor(row-1, col-1);
 				}
-				//CellGrid.printCellGrid(20);
 				result = CellGrid.run();
 				output.write(result + "\n");
-				//CellGrid.printCellGrid(20);
+				
 				CellGrid.clear();
 			}
 			
@@ -44,17 +44,32 @@ public class Problem1 {
 }
 
 class CellGrid {
-	public static final int MAX_GRID = 500;
+	public static final int MAX_GRID = 1000000000;
 	
 	public static final int CELL_NOT_INFESTED = 0;
-	public static final int CELL_INFESTED = 1;
-	public static final int CELL_NOT_EXIST = 2;
+	public static final int CELL_INFESTING = 1;
+	public static final int CELL_INFESTED = 2;
+	public static final int CELL_NOT_EXIST = 3;
 	
-	private static boolean[][] mInfestedCellArray = new boolean[MAX_GRID][MAX_GRID];
+	private static HashMap<Integer, HashMap<Integer, Boolean>> mInfestedCellMap = new HashMap<Integer, HashMap<Integer, Boolean>>();
 	private static ArrayList<Infestor> mInfestorList = new ArrayList<Infestor>();
 	
-	public static void setInfestorOnCell(int row, int col) {
-		mInfestedCellArray[row][col] = true;
+	public static boolean setInfestedCell(int row, int col, boolean isInfested) {
+		if(row < MAX_GRID) {
+			if(mInfestedCellMap.containsKey(row)) {
+				mInfestedCellMap.get(row).put(col, isInfested);
+			} else {
+				mInfestedCellMap.put(row, new HashMap<Integer, Boolean>());
+				mInfestedCellMap.get(row).put(col, isInfested);
+			}
+		} else {
+			return false;
+		}
+		
+		return true;
+	}
+
+	public static void addInfestor(int row, int col) {
 		mInfestorList.add(new Infestor(row, col));
 	}
 	
@@ -63,7 +78,7 @@ class CellGrid {
 		int infestCount = 0;
 		boolean isFinished = false;
 		int numOfInfestor = mInfestorList.size();
-		
+
 		while(!isFinished) {
 			for(int i=0; i<numOfInfestor; i++) {
 				int ret = mInfestorList.get(i).tryInfest();
@@ -82,6 +97,10 @@ class CellGrid {
 			if(infestCount > 0) {	// If cell is infested, count seconds.
 				secCount++;
 				infestCount = 0;
+
+				for(int i=numOfInfestor; i<mInfestorList.size(); i++) {
+					mInfestorList.get(i).infestCell();	// Do real infestation
+				}
 				numOfInfestor = mInfestorList.size();
 			} else {	// If there is nothing to infest, finish infestation. 
 				isFinished = true;
@@ -92,31 +111,55 @@ class CellGrid {
 	}
 	
 	public static int checkCellStatus(int row, int col) {
-		if(row < 0 || col < 0 || row > MAX_GRID - 1 || col > MAX_GRID - 1) {
-			return CELL_NOT_EXIST;
-		} else if(mInfestedCellArray[row][col]) {
-			return CELL_INFESTED;
-		} 
-		
+		try {
+			if(row < 0 || col < 0 || row > MAX_GRID - 1 || col > MAX_GRID - 1) {
+				return CELL_NOT_EXIST;
+			} else if(mInfestedCellMap.get(row).get(col) == true) {
+				return CELL_INFESTED;
+			} else if(mInfestedCellMap.get(row).get(col) == false) {
+				return CELL_INFESTING;
+			}
+		} catch(NullPointerException e) {
+			//System.out.println("Cell isn't infested");
+		}
 		return CELL_NOT_INFESTED;
 	}
-	
-	// for debug
+		
+	// For debug
+	static boolean started = false;
 	public static void printCellGrid(int width) {
-		for(int i=0; i<width; i++) {
-			for(int j=0; j<width; j++) {
-				if(mInfestedCellArray[i][j])
-					System.out.print("бс");
-				else
-					System.out.print("бр");
+		FileWriter output;
+		try {			
+			if(started)
+				output = new FileWriter(new File("Set_1_Debug.out"), true);
+			else
+				output = new FileWriter(new File("Set_1_Debug.out"), false);
+			for(int i=0; i<width; i++) {
+				for(int j=0; j<width; j++) {
+					if(mInfestedCellMap.get(i).get(j) != null) {
+						//System.out.print("бс");
+						output.write("бс");
+					}
+					else {
+						//System.out.print("бр");
+						output.write("бр");
+					}
+				}
+				//System.out.println();
+				output.write("\n");
 			}
-			System.out.println();
+			//System.out.println();
+			output.write("\n");
+			output.close();
+		} catch (IOException e) {
+			e.printStackTrace();
+		} finally {
+			started = true;
 		}
-		System.out.println();
 	}
 	
 	public static void clear() {
-		mInfestedCellArray = new boolean[MAX_GRID][MAX_GRID];
+		mInfestedCellMap.clear();
 		mInfestorList.clear();
 	}
 }
@@ -145,48 +188,52 @@ class Infestor {
 		
 		// Check if top cell is infested
 		// If not, check infestor around the cell to infest
-		if(CellGrid.checkCellStatus(mRow-1, mCol) >= CellGrid.CELL_INFESTED) {	
+		if(CellGrid.checkCellStatus(mRow-1, mCol) >= CellGrid.CELL_INFESTING) {	
 			infestedCellCount++;
 		} else if((CellGrid.checkCellStatus(mRow-1, mCol-1) == CellGrid.CELL_INFESTED) ||	// Check left cell is infestor
 				(CellGrid.checkCellStatus(mRow-2, mCol) == CellGrid.CELL_INFESTED) || 		// Check top cell is infestor
 				(CellGrid.checkCellStatus(mRow-1, mCol+1) == CellGrid.CELL_INFESTED)) {		// Check right cell is infestor
-			CellGrid.setInfestorOnCell(mRow-1, mCol);
+			CellGrid.addInfestor(mRow-1, mCol);
+			CellGrid.setInfestedCell(mRow-1, mCol, false);
 			infestedCellCount++;
 			infestFlag = true;
 		}
 		
 		// Check if bottom cell is infested
 		// If not, check infestor around the cell to infest
-		if(CellGrid.checkCellStatus(mRow+1, mCol) >= CellGrid.CELL_INFESTED) {
+		if(CellGrid.checkCellStatus(mRow+1, mCol) >= CellGrid.CELL_INFESTING) {
 			infestedCellCount++;
 		} else if((CellGrid.checkCellStatus(mRow+1, mCol-1) == CellGrid.CELL_INFESTED) ||	// Check left cell is infestor
 				(CellGrid.checkCellStatus(mRow+2, mCol) == CellGrid.CELL_INFESTED) || 		// Check bottom cell is infestor
 				(CellGrid.checkCellStatus(mRow+1, mCol+1) == CellGrid.CELL_INFESTED)) {		// Check right cell is infestor
-			CellGrid.setInfestorOnCell(mRow+1, mCol);
+			CellGrid.addInfestor(mRow+1, mCol);
+			CellGrid.setInfestedCell(mRow+1, mCol, false);
 			infestedCellCount++;
 			infestFlag = true;
 		}
 		
 		// Check if left cell is infested
 		// If not, check infestor around the cell to infest
-		if(CellGrid.checkCellStatus(mRow, mCol-1) >= CellGrid.CELL_INFESTED) {
+		if(CellGrid.checkCellStatus(mRow, mCol-1) >= CellGrid.CELL_INFESTING) {
 			infestedCellCount++;
 		} else if((CellGrid.checkCellStatus(mRow-1, mCol-1) == CellGrid.CELL_INFESTED) ||	// Check top cell is infestor
 				(CellGrid.checkCellStatus(mRow, mCol-2) == CellGrid.CELL_INFESTED) || 		// Check left cell is infestor
 				(CellGrid.checkCellStatus(mRow+1, mCol-1) == CellGrid.CELL_INFESTED)) {		// Check bottom cell is infestor
-			CellGrid.setInfestorOnCell(mRow, mCol-1);
+			CellGrid.addInfestor(mRow, mCol-1);
+			CellGrid.setInfestedCell(mRow, mCol-1, false);
 			infestedCellCount++;
 			infestFlag = true;
 		}
 		
 		// Check if right cell is infested
 		// If not, check infestor around the cell to infest
-		if(CellGrid.checkCellStatus(mRow, mCol+1) >= CellGrid.CELL_INFESTED) {
+		if(CellGrid.checkCellStatus(mRow, mCol+1) >= CellGrid.CELL_INFESTING) {
 			infestedCellCount++;
 		} else if((CellGrid.checkCellStatus(mRow-1, mCol+1) == CellGrid.CELL_INFESTED) ||	// Check top cell is infestor
 				(CellGrid.checkCellStatus(mRow, mCol+2) == CellGrid.CELL_INFESTED) || 		// Check right cell is infestor
 				(CellGrid.checkCellStatus(mRow+1, mCol+1) == CellGrid.CELL_INFESTED)) {		// Check bottom cell is infestor
-			CellGrid.setInfestorOnCell(mRow, mCol+1);
+			CellGrid.addInfestor(mRow, mCol+1);
+			CellGrid.setInfestedCell(mRow, mCol+1, false);
 			infestedCellCount++;
 			infestFlag = true;
 		}
@@ -199,5 +246,9 @@ class Infestor {
 			return INFESTOR_INFEST_SUCCESS;
 		else
 			return INFESTOR_INFEST_FAIL;
+	}
+	
+	public void infestCell() {
+		CellGrid.setInfestedCell(mRow, mCol, true);
 	}
 }
